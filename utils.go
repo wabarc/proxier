@@ -205,3 +205,12 @@ func parseAllowedIPs(section *ini.Section) ([]netip.Prefix, error) {
 func resolveIP(ip string) (*net.IPAddr, error) {
 	return net.ResolveIPAddr("ip", ip)
 }
+
+func breakLine(s string) string {
+	s = strings.ReplaceAll(s, `\r`, "\n")
+	s = strings.ReplaceAll(s, `\n`, "\n")
+	s = strings.ReplaceAll(s, `\r\n`, "\n")
+	s = strings.ReplaceAll(s, `<br>`, "\n")
+	s = strings.ReplaceAll(s, `<br/>`, "\n")
+	return s
+}

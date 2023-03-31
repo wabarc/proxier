@@ -104,6 +104,10 @@ func newWireGuardClient(dev *DeviceConfig) (*http.Client, error) {
 	pvk, pk := dev.PrivateKey, dev.Peer.PublicKey
 	allowedIPs := []string{}
 	for _, ip := range dev.Peer.AllowedIPs {
+		// Ignore IPv6
+		if strings.Contains(ip.String(), ":") {
+			continue
+		}
 		allowedIPs = append(allowedIPs, ip.String())
 	}
 	if len(allowedIPs) == 0 {
@@ -111,7 +115,8 @@ func newWireGuardClient(dev *DeviceConfig) (*http.Client, error) {
 	}
 
 	format := `private_key=%s\npublic_key=%s\nallowed_ip=%s\nendpoint=%s`
-	uapi := fmt.Sprintf(format, pvk, pk, strings.Join(allowedIPs, `,`), dev.Peer.Endpoint)
+	uapi := breakLine(fmt.Sprintf(format, pvk, pk, strings.Join(allowedIPs, `,`), dev.Peer.Endpoint))
+	// TODO: specified log level
 	nd := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
 	err = nd.IpcSet(uapi)
 	if err != nil {
