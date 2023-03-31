@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/go-ini/ini v1.67.0
-	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
+	golang.zx2c4.com/wireguard v0.0.20201121
 )
 
 require (
