@@ -5,11 +5,11 @@
 package proxier // import "github.com/wabarc/proxier"
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 	"net/netip"
-	"strings"
 
 	"github.com/go-ini/ini"
 	"golang.zx2c4.com/wireguard/conn"
@@ -51,7 +51,7 @@ type DeviceConfig struct {
 //	AllowedIPs = 0.0.0.0/0
 //	Endpoint = <public IP address of the server>:51820
 //	PersistentKeepalive = 25
-func (c *Client) ViaWireGuard(r io.Reader) error {
+func (c *Client) ViaWireGuard(r io.Reader) (*netstack.Net, error) {
 	iniOpt := ini.LoadOptions{
 		Insensitive:            true,
 		AllowShadows:           true,
@@ -60,7 +60,7 @@ func (c *Client) ViaWireGuard(r io.Reader) error {
 
 	cfg, err := ini.LoadSources(iniOpt, r)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	dev := &DeviceConfig{
@@ -73,52 +73,53 @@ func (c *Client) ViaWireGuard(r io.Reader) error {
 	if err == nil {
 		wgCfg, err = ini.LoadSources(iniOpt, wgConf.String())
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	err = parseInterface(wgCfg, dev)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = parsePeer(wgCfg, &dev.Peer)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	client, err := newWireGuardClient(dev)
+	tnet, err := newWireGuardClient(dev, c.Client)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	c.Client.Transport = client.Transport
-	return nil
+
+	return tnet, nil
 }
 
-func newWireGuardClient(dev *DeviceConfig) (*http.Client, error) {
+func newWireGuardClient(dev *DeviceConfig, client *http.Client) (*netstack.Net, error) {
 	tun, tnet, err := netstack.CreateNetTUN(dev.Address, dev.DNS, dev.MTU)
 	if err != nil {
 		return nil, err
 	}
 
-	pvk, pk := dev.PrivateKey, dev.Peer.PublicKey
-	allowedIPs := []string{}
-	for _, ip := range dev.Peer.AllowedIPs {
-		// Ignore IPv6
-		if strings.Contains(ip.String(), ":") {
-			continue
+	var config bytes.Buffer
+	format := "private_key=%s\npublic_key=%s\nendpoint=%s\n"
+	uapi := fmt.Sprintf(format, dev.PrivateKey, dev.Peer.PublicKey, dev.Peer.Endpoint)
+	config.WriteString(uapi)
+	if len(dev.Peer.AllowedIPs) > 0 {
+		for _, ip := range dev.Peer.AllowedIPs {
+			config.WriteString(fmt.Sprintf("allowed_ip=%s\n", ip.String()))
 		}
-		allowedIPs = append(allowedIPs, ip.String())
 	}
-	if len(allowedIPs) == 0 {
-		allowedIPs = []string{`0.0.0.0/0`}
+	if dev.Peer.KeepAlive > 0 {
+		config.WriteString(fmt.Sprintf("persistent_keepalive_interval=%d\n", dev.Peer.KeepAlive))
+	}
+	if dev.Peer.PreSharedKey != "" {
+		config.WriteString(fmt.Sprintf("preshared_key=%s\n", dev.Peer.PreSharedKey))
 	}
 
-	format := `private_key=%s\npublic_key=%s\nallowed_ip=%s\nendpoint=%s`
-	uapi := breakLine(fmt.Sprintf(format, pvk, pk, strings.Join(allowedIPs, `,`), dev.Peer.Endpoint))
 	// TODO: specified log level
 	nd := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
-	err = nd.IpcSet(uapi)
+	err = nd.IpcSet(config.String())
 	if err != nil {
 		return nil, err
 	}
@@ -127,11 +128,9 @@ func newWireGuardClient(dev *DeviceConfig) (*http.Client, error) {
 		return nil, err
 	}
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialContext: tnet.DialContext,
-		},
+	client.Transport = &http.Transport{
+		DialContext: tnet.DialContext,
 	}
 
-	return client, nil
+	return tnet, nil
 }
