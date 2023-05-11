@@ -142,9 +142,6 @@ func dialUTLS(network, addr string, cfg *utls.Config, clientHelloID *utls.Client
 		}
 		uconn.SetSNI(serverName)
 	}
-	if err = uconn.ApplyPreset(clientHelloSpec()); err != nil {
-		return nil, fmt.Errorf("apply utls client hello spec fail: %w", err)
-	}
 	if err = uconn.Handshake(); err != nil {
 		return nil, err
 	}

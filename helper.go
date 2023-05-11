@@ -8,6 +8,7 @@ import (
 	utls "github.com/refraction-networking/utls"
 )
 
+// chrome-like client hello spec
 func clientHelloSpec() *utls.ClientHelloSpec {
 	return &utls.ClientHelloSpec{
 		TLSVersMax:         utls.VersionTLS13,

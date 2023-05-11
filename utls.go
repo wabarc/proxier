@@ -18,7 +18,7 @@ import (
 	utls "github.com/refraction-networking/utls"
 )
 
-var defaultClientHelloID = &utls.HelloRandomizedALPN
+var defaultClientHelloID = &utls.HelloChrome_102
 
 // A http.RoundTripper that uses uTLS (with a specified Client Hello ID) to make
 // TLS connections.
@@ -27,9 +27,11 @@ var defaultClientHelloID = &utls.HelloRandomizedALPN
 type UTLSRoundTripper struct {
 	clientHelloID *utls.ClientHelloID
 	config        *utls.Config
-	proxyDialer   proxy.Dialer
-	rtLock        sync.Mutex
-	rt            http.RoundTripper
+
+	proxyDialer proxy.Dialer
+
+	rtLock sync.Mutex
+	rt     http.RoundTripper
 
 	// Transport for HTTP requests, which don't use uTLS.
 	httpRT *http.Transport
@@ -56,7 +58,7 @@ func (u *UTLSRoundTripper) httpsRoundTrip(req *http.Request) (*http.Response, er
 	if u.rt == nil {
 		// On the first call, make an http.Transport or http2.Transport
 		// as appropriate.
-		u.rt, err = makeRoundTripper(req.URL, u.clientHelloID, u.config, u.proxyDialer)
+		u.rt, err = u.makeRoundTripper(req.URL)
 	}
 	u.rtLock.Unlock()
 	if err != nil {
@@ -71,7 +73,7 @@ func (u *UTLSRoundTripper) httpsRoundTrip(req *http.Request) (*http.Response, er
 	return u.rt.RoundTrip(req)
 }
 
-func makeRoundTripper(url *url.URL, clientHelloID *utls.ClientHelloID, cfg *utls.Config, proxyDialer proxy.Dialer) (http.RoundTripper, error) {
+func (u *UTLSRoundTripper) makeRoundTripper(url *url.URL) (http.RoundTripper, error) {
 	addr, err := addrForDial(url)
 	if err != nil {
 		return nil, err
@@ -81,7 +83,7 @@ func makeRoundTripper(url *url.URL, clientHelloID *utls.ClientHelloID, cfg *utls
 	// initiate a TLS handshake using the given ClientHelloID. Return the
 	// resulting connection.
 	dial := func(network, addr string) (*utls.UConn, error) {
-		return dialUTLS(network, addr, cfg, clientHelloID, proxyDialer)
+		return dialUTLS(network, addr, u.config, u.clientHelloID, u.proxyDialer)
 	}
 
 	bootstrapConn, err := dial("tcp", addr)
@@ -152,10 +154,6 @@ func makeRoundTripper(url *url.URL, clientHelloID *utls.ClientHelloID, cfg *utls
 // and an error.
 func NewUTLSRoundTripper(opts ...UTLSOption) (http.RoundTripper, error) {
 	u := UTLSOptions(opts...)
-
-	if u.clientHello == nil {
-		u.clientHello = defaultClientHelloID
-	}
 
 	var (
 		err error

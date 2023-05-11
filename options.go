@@ -26,6 +26,11 @@ func UTLSOptions(options ...UTLSOption) UTLS {
 	for _, o := range options {
 		o(&u)
 	}
+
+	if u.clientHello == nil {
+		u.clientHello = defaultClientHelloID
+	}
+
 	return u
 }
 
