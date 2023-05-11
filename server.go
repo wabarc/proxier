@@ -4,12 +4,8 @@
 
 package proxier // import "github.com/wabarc/proxier"
 
-import (
-	"testing"
-)
+type Server struct {
+}
 
-func TestViaWireGuard(t *testing.T) {
-	client := NewClient(nil)
-
-	client.ViaWireGuard(nil)
+func (s *Server) Serve() {
 }

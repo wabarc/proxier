@@ -66,3 +66,10 @@ jobs:
         go test -v -race -cover -coverprofile=coverage.out -covermode=atomic ./...
         go tool cover -func=coverage.out
       shell: bash
+
+    - name: Run Integration Testing
+      run: |
+        go clean -testcache
+        go test -v -race -tags integration -cover -coverprofile=integration.out -covermode=atomic ./...
+        go tool cover -func=integration.out
+      shell: bash
