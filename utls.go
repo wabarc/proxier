@@ -146,6 +146,25 @@ func (u *UTLSRoundTripper) makeRoundTripper(url *url.URL) (http.RoundTripper, er
 	}
 }
 
+// Dialer returns the underlying *net.Dialer used by the UTLSRoundTripper's proxyDialer.
+// This method is useful for accessing additional properties of the dialer,
+// such as its proxy settings.
+//
+//	func main() {
+//		dialer := UTLSRoundTripper.Dialer()
+//		conn, err := dialer.Dial("tcp", "example.com:443")
+//		if err != nil {
+//			panic(err)
+//		}
+//		// Optional to wraps conn to a tls client for tls transport.
+//		conn = tls.Client(conn, &tls.Config{ServerName: "example.com"})
+//
+//		// ...
+//	}
+func (u *UTLSRoundTripper) Dialer() proxy.Dialer {
+	return u.proxyDialer
+}
+
 // NewUTLSRoundTripper creates a new round tripper that can be used in an HTTP
 // client to handle secure connections using the UTLS protocol.
 //
