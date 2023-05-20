@@ -57,12 +57,12 @@ func (pr *httpProxy) Dial(network, addr string) (net.Conn, error) {
 	// because TLS server will not speak until spoken to."
 	br := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(br, connectReq)
-	if br.Buffered() != 0 {
-		panic(br.Buffered())
-	}
 	if err != nil {
 		conn.Close()
 		return nil, err
+	}
+	if br.Buffered() != 0 {
+		return nil, fmt.Errorf("response buffered: %d", br.Buffered())
 	}
 	if resp.StatusCode != 200 {
 		conn.Close()
@@ -189,7 +189,7 @@ func makeProxyDialer(p interface{}, cfg *utls.Config, clientHelloID *utls.Client
 	}
 
 	switch proxyURL.Scheme {
-	case "socks5":
+	case "socks4", "socks4a", "socks5", "socks5h":
 		proxyDialer, err = proxy.SOCKS5("tcp", proxyAddr, auth, proxyDialer)
 	case "http":
 		proxyDialer, err = ProxyHTTP("tcp", proxyAddr, auth, proxyDialer)
