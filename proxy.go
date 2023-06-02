@@ -132,18 +132,18 @@ func addrForDial(url *url.URL) (string, error) {
 func dialUTLS(network, addr string, cfg *utls.Config, clientHelloID *utls.ClientHelloID, forward proxy.Dialer) (*utls.UConn, error) {
 	conn, err := forward.Dial(network, addr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to dial via proxy: %v", err)
 	}
 	uconn := utls.UClient(conn, cfg, *clientHelloID)
 	if cfg == nil || cfg.ServerName == "" {
 		serverName, _, err := net.SplitHostPort(addr)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to split host and port: %v", err)
 		}
 		uconn.SetSNI(serverName)
 	}
 	if err = uconn.Handshake(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to handshake: %v", err)
 	}
 	return uconn, nil
 }
