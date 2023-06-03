@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"sync"
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/proxy"
@@ -29,9 +28,6 @@ type UTLSRoundTripper struct {
 	config        *utls.Config
 
 	proxyDialer proxy.Dialer
-
-	rtLock sync.Mutex
-	rt     http.RoundTripper
 
 	// Transport for HTTP requests, which don't use uTLS.
 	httpRT *http.Transport
@@ -54,13 +50,8 @@ func (u *UTLSRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 
 func (u *UTLSRoundTripper) httpsRoundTrip(req *http.Request) (*http.Response, error) {
 	var err error
-	u.rtLock.Lock()
-	if u.rt == nil {
-		// On the first call, make an http.Transport or http2.Transport
-		// as appropriate.
-		u.rt, err = u.makeRoundTripper(req.URL)
-	}
-	u.rtLock.Unlock()
+	// Make an http.Transport or http2.Transport as appropriate.
+	rt, err := u.makeRoundTripper(req.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +61,7 @@ func (u *UTLSRoundTripper) httpsRoundTrip(req *http.Request) (*http.Response, er
 	}
 
 	// Forward the request to the internal http.Transport or http2.Transport.
-	return u.rt.RoundTrip(req)
+	return rt.RoundTrip(req)
 }
 
 func (u *UTLSRoundTripper) makeRoundTripper(url *url.URL) (http.RoundTripper, error) {
@@ -95,13 +86,9 @@ func (u *UTLSRoundTripper) makeRoundTripper(url *url.URL) (http.RoundTripper, er
 	protocol := bootstrapConn.ConnectionState().NegotiatedProtocol
 
 	// Protects bootstrapConn.
-	var lock sync.Mutex
 	// This is the callback for future dials done by the internal
 	// http.Transport or http2.Transport.
 	dialTLS := func(network, addr string) (net.Conn, error) {
-		lock.Lock()
-		defer lock.Unlock()
-
 		// On the first dial, reuse bootstrapConn.
 		if bootstrapConn != nil {
 			uconn := bootstrapConn
